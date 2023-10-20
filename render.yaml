@@ -1,0 +1,7 @@
+yaml
+services:
+  - name: <ernp-dlbeta>
+    type: web
+    buildCommand: <pip install -r requirements.txt>
+    startCommand: <python 3htg2.py>
+    
