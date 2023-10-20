@@ -6,8 +6,4 @@ wget
 
 telebot
 
-os
-
 zipfile
-
-time
