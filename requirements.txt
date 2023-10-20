@@ -1,0 +1,13 @@
+requests
+
+beautifulsoup4
+
+wget
+
+telebot
+
+os
+
+zipfile
+
+time
