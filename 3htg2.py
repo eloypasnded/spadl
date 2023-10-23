@@ -26,7 +26,7 @@ def download_images(id_manga, title, message):
     
     for i, link in enumerate(image_links):
         response = requests.get(link)
-        with open(f"{title}/{i}.jpg", 'wb') as f:
+        with open(f"{id_manga}_{title}/{i}.jpg", 'wb') as f:
             f.write(response.content)
         bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f"Descargando... {i+1}/{len(image_links)}")
     
