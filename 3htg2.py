@@ -1,71 +1,90 @@
-import telebot
-import time
-import requests
-from bs4 import BeautifulSoup
 import os
+import shutil
 import zipfile
+import telebot
+from bs4 import BeautifulSoup
+import requests
 
-TOKEN = '6548957475:AAHdpo3h5zyMsxszPZkYdr8yTd-dLnAqu9c'
+TOKEN = '6743528124:AAF5BtyqNTQbffrXtFdrJdW_pLL8RFGQnSk'
 bot = telebot.TeleBot(TOKEN)
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.send_message(message.chat.id, 'Hola! Usa el comando /d <id_manga> para descargar las imágenes.')
-
-def download_images(id_manga, title, message):
-    url = f"https://es.3hentai.net/d/{id_manga}"
+def download_images(chat_id, url, page_title):
     response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    images = soup.find_all('img', {'data-src': True})
-    image_links = [img['data-src'].replace('t.jpg', '.jpg') for img in images]
-    
-    if not os.path.exists(title):
-        os.makedirs(title)
-    
-    msg = bot.send_message(message.chat.id, "Descargando... 0/{}".format(len(image_links)))
-    
-    for i, link in enumerate(image_links):
-        response = requests.get(link)
-        with open(f"{id_manga}_{title}/{i}.jpg", 'wb') as f:
-            f.write(response.content)
-        bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f"Descargando... {i+1}/{len(image_links)}")
-    
-    return image_links
+    soup = BeautifulSoup(response.content, 'html.parser')
+    img_tags = soup.find_all('img', {'src': lambda x: x and 't.jpg' in x})
 
-def create_cbz(title):
-    with zipfile.ZipFile(f"{id_manga}_{title}.cbz", 'w') as zipf:
-        for root, dirs, files in os.walk(title):
-            for file in files:
-                zipf.write(os.path.join(root, file))
-    for file in os.scandir(title):
-        os.remove(file.path)
-    os.rmdir(title)
+    # Create a directory with the page title as the name
+    directory = "".join(c for c in page_title if c.isalnum() or c in (' ',)).rstrip()
+    os.makedirs(directory, exist_ok=True)
+
+    for i, img_tag in enumerate(img_tags):
+        img_url = img_tag['src'].replace('t.jpg', '.jpg')
+        response = requests.get(img_url, stream=True)
+        with open(os.path.join(directory, f'image{i}.jpg'), 'wb') as out_file:
+            shutil.copyfileobj(response.raw, out_file)
+        del response
+
+    # Create a CBZ file
+    with zipfile.ZipFile(f'{directory}.cbz', 'w') as zipf:
+        for file in os.listdir(directory):
+            zipf.write(os.path.join(directory, file), arcname=file)
+
+    # Send the CBZ file
+    with open(f'{directory}.cbz', 'rb') as cbz_file:
+        bot.send_document(chat_id=chat_id, data=cbz_file)
+
+    # Delete the directory
+    shutil.rmtree(directory)
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    if message.from_user.username == 'Zoe_Ebe':
+        bot.reply_to(message, 'Hola, estoy listo para recibir mensajes.')
+
+@bot.message_handler(commands=['code'])
+def echo_all(message):
+    if message.from_user.username == 'Zoe_Ebe':
+        command, *args = message.text.split()
+        if not args:
+            bot.reply_to(message, 'Introduzca un código')
+            return
+        text = args[0]
+        url = f'https://es.3hentai.net/d/{text}'
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            page_title = soup.title.string
+            img_url = soup.find('img', {'src': lambda x: x and 'cover.jpg' in x})['src']
+            img_tags = soup.find_all('img', {'src': lambda x: x and 't.jpg' in x})
+            bot.send_photo(chat_id=message.chat.id, photo=img_url, caption=f'El nombre de la página es: {page_title}. La página contiene {len(img_tags)} imágenes. Si desea descargarlas, use el comando /d {text} o /cbz {text} para obtener un archivo CBZ.')
+        else:
+            bot.reply_to(message, 'Ha introducido un código incorrecto')
 
 @bot.message_handler(commands=['d'])
-def handle_command(message):
-    id_manga = message.text.split()[1]
-    url = f"https://es.3hentai.net/d/{id_manga}"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    title = soup.title.string
-    
-    try:
-        image_links = download_images(id_manga, title, message)
-        create_cbz(title)
-        with open(f"{id_manga}_{title}.cbz", 'rb') as cbz_file:
-            bot.send_document(message.chat.id, cbz_file)
-        os.remove(f"{title}.cbz")
-    except Exception as e:
-        print(f"Error: {e}")
+def download_images_command(message):
+    if message.from_user.username == 'Zoe_Ebe':
+        command, *args = message.text.split()
+        if not args:
+            bot.reply_to(message, 'Introduzca un código')
+            return
+        text = args[0]
+        url = f'https://es.3hentai.net/d/{text}'
+        send_images(message.chat.id, url)
 
-def main():
-     while True:
-         try:
-             bot.polling(none_stop=True)
-         except Exception as e:
-             print('Error de conexion')
-             # Espera 10 segundos antes de intentar reconectarse
-             time.sleep(3)
+@bot.message_handler(commands=['cbz'])
+def download_cbz_command(message):
+    if message.from_user.username == 'Zoe_Ebe':
+        command, *args = message.text.split()
+        if not args:
+            bot.reply_to(message, 'Introduzca un código')
+            return
+        text = args[0]
+        url = f'https://es.3hentai.net/d/{text}'
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            page_title = soup.title.string
+            download_images(message.chat.id, url, page_title)
 
-if __name__ == '__main__':
-     main()
+bot.polling()
