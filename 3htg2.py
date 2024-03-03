@@ -31,7 +31,7 @@ def download_images(chat_id, url, page_title):
 
     # Send the CBZ file
     with open(f'{directory}.cbz', 'rb') as cbz_file:
-        bot.send_document(chat_id=chat_id, data=cbz_file)
+        bot.send_document(chat_id=chat_id, document=cbz_file)
 
     # Delete the directory
     shutil.rmtree(directory)
