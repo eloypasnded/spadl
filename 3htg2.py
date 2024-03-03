@@ -49,19 +49,21 @@ def echo_all(message):
             bot.reply_to(message, 'Introduzca un código')
             return
         text = args[0]
-        url = f'https://es.3hentai.net/d/{text}'
-        response = requests.get(url)
+        urls = [f'https://es.3hentai.net/d/{text}', f'https://es.3hentai.net/g/{text}']
+        for url in urls:
+            response = requests.get(url)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                page_title = soup.title.string
+                img_url = soup.find('img', {'src': lambda x: x and 'cover.jpg' in x})['src']
+                img_tags = soup.find_all('img', {'src': lambda x: x and 't.jpg' in x})
+                download_command = '/d' if 'd' in url else '/g'
+                bot.send_photo(chat_id=message.chat.id, photo=img_url, caption=f'El nombre de la página es: {page_title}. La página contiene {len(img_tags)} imágenes. Si desea descargarlas, use el comando {download_command} {text} para obtener un archivo CBZ.')
+                break
+            else:
+                bot.reply_to(message, 'Ha introducido un código incorrecto')
 
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            page_title = soup.title.string
-            img_url = soup.find('img', {'src': lambda x: x and 'cover.jpg' in x})['src']
-            img_tags = soup.find_all('img', {'src': lambda x: x and 't.jpg' in x})
-            bot.send_photo(chat_id=message.chat.id, photo=img_url, caption=f'El nombre de la página es: {page_title}. La página contiene {len(img_tags)} imágenes. Si desea descargarlas, use el comando /d {text} o /cbz {text} para obtener un archivo CBZ.')
-        else:
-            bot.reply_to(message, 'Ha introducido un código incorrecto')
-
-@bot.message_handler(commands=['d'])
+@bot.message_handler(commands=['d', 'g'])
 def download_images_command(message):
     if message.from_user.username == 'Zoe_Ebe':
         command, *args = message.text.split()
@@ -69,18 +71,7 @@ def download_images_command(message):
             bot.reply_to(message, 'Introduzca un código')
             return
         text = args[0]
-        url = f'https://es.3hentai.net/d/{text}'
-        send_images(message.chat.id, url)
-
-@bot.message_handler(commands=['cbz'])
-def download_cbz_command(message):
-    if message.from_user.username == 'Zoe_Ebe':
-        command, *args = message.text.split()
-        if not args:
-            bot.reply_to(message, 'Introduzca un código')
-            return
-        text = args[0]
-        url = f'https://es.3hentai.net/d/{text}'
+        url = f'https://es.3hentai.net/{command[1:]}/{text}'
         response = requests.get(url)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
