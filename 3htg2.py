@@ -1,7 +1,7 @@
 import os
 import shutil
 import zipfile
-import telebot
+import telebot as telebot
 from bs4 import BeautifulSoup
 import requests
 
