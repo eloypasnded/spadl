@@ -6,7 +6,7 @@ import psutil
 
 TOKEN = '6743528124:AAF5BtyqNTQbffrXtFdrJdW_pLL8RFGQnSk'
 bot = telebot.TeleBot(TOKEN)
-CHANNEL_NAME = '@lolis_sekai'
+CHANNEL_NAME = '@animexnube'
 
 def check_memory():
     # Get the memory usage in bytes
