@@ -4,16 +4,12 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import zipfile
-from ratelimiter import RateLimiter
 
 TOKEN = '6743528124:AAF5BtyqNTQbffrXtFdrJdW_pLL8RFGQnSk'
 bot = telebot.TeleBot(TOKEN)
 
 # Variable global para controlar el uso del comando /d
 command_in_use = False
-
-# Limitador de velocidad
-rate_limiter = RateLimiter(max_calls=2, period=1)  # 2MB/s
 
 # Caracteres no válidos en los nombres de los archivos
 invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
@@ -40,10 +36,9 @@ def download_images(id_manga, title, message):
     msg = bot.send_message(message.chat.id, "Descargando... 0/{}".format(len(image_links)))
     
     for i, link in enumerate(image_links):
-        with rate_limiter:
-            response = requests.get(link)
-            with open(f"{title}/{i}.jpg", 'wb') as f:
-                f.write(response.content)
+        response = requests.get(link)
+        with open(f"{title}/{i}.jpg", 'wb') as f:
+            f.write(response.content)
         bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f"Descargando... {i+1}/{len(image_links)}")
     
     return image_links
