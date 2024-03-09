@@ -44,7 +44,8 @@ def download_images(id_manga, title, message):
     return image_links
 
 def create_cbz(title):
-    with zipfile.ZipFile(f"{title}.cbz", 'w') as zipf:
+    sanitized_title = sanitize_filename(title)
+    with zipfile.ZipFile(f"{sanitized_title}.cbz", 'w') as zipf:
         for root, dirs, files in os.walk(title):
             for file in files:
                 zipf.write(os.path.join(root, file))
@@ -60,7 +61,11 @@ def handle_command(message):
         return
     command_in_use = True
     id_manga = message.text.split()[1]
-    title = sanitize_filename(id_manga)
+    url = f"https://es.3hentai.net/d/{id_manga}"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    page_title = soup.title.string
+    title = sanitize_filename(page_title) + f" ({id_manga})"
     
     try:
         image_links = download_images(id_manga, title, message)
