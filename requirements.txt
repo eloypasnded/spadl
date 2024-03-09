@@ -1,5 +1,4 @@
-pyTelegramBotAPI
-telebot==0.0.4
-beautifulsoup4==4.10.0
+telebot==0.0.3
 requests==2.26.0
-psutil
+beautifulsoup4==4.10.0
+ratelimiter==1.2.0.post0
