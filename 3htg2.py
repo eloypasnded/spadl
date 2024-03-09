@@ -1,80 +1,86 @@
-import os
 import telebot
-from bs4 import BeautifulSoup
+import time
 import requests
-import psutil
+from bs4 import BeautifulSoup
+import os
+import zipfile
+from ratelimiter import RateLimiter
 
 TOKEN = '6743528124:AAF5BtyqNTQbffrXtFdrJdW_pLL8RFGQnSk'
 bot = telebot.TeleBot(TOKEN)
-CHANNEL_NAME = '@animexnube'
 
-def check_memory():
-    # Get the memory usage in bytes
-    memory_usage = psutil.Process(os.getpid()).memory_info().rss
-    # Convert to MB
-    memory_usage_mb = memory_usage / (1024 * 1024)
-    return memory_usage_mb < 500
+# Variable global para controlar el uso del comando /d
+command_in_use = False
 
-def send_images(chat_id, url):
-    if not check_memory():
-        bot.send_message(chat_id=chat_id, text='Espere un momento a que se libere RAM')
-        return
+# Limitador de velocidad
+rate_limiter = RateLimiter(max_calls=2, period=1)  # 2MB/s
 
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    img_tags = soup.find_all('img', {'src': lambda x: x and 't.jpg' in x})
+# Caracteres no válidos en los nombres de los archivos
+invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
 
-    images = []
-    for i, img_tag in enumerate(img_tags):
-        if not check_memory():
-            bot.send_message(chat_id=chat_id, text='Espere un momento a que se libere RAM')
-            break
-
-        img_url = img_tag['src'].replace('t.jpg', '.jpg')
-        images.append(telebot.types.InputMediaPhoto(img_url))
-
-        # Send images in groups of 10
-        if len(images) == 10:
-            bot.send_media_group(chat_id=chat_id, media=images)
-            images = []
-
-    # Send any remaining images
-    if images:
-        bot.send_media_group(chat_id=chat_id, media=images)
+def sanitize_filename(filename):
+    for char in invalid_chars:
+        filename = filename.replace(char, '')
+    return filename
 
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, 'Hola, estoy listo para recibir mensajes.')
+def start(message):
+    bot.send_message(message.chat.id, 'Hola! Usa el comando /d <id_manga> para descargar las imágenes.')
 
-@bot.message_handler(commands=['code'])
-def echo_all(message):
-    command, *args = message.text.split()
-    if not args:
-        bot.reply_to(message, 'Introduzca un código')
+def download_images(id_manga, title, message):
+    url = f"https://es.3hentai.net/d/{id_manga}"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    images = soup.find_all('img', {'data-src': True})
+    image_links = [img['data-src'].replace('t.jpg', '.jpg') for img in images]
+    
+    if not os.path.exists(title):
+        os.makedirs(title)
+    
+    msg = bot.send_message(message.chat.id, "Descargando... 0/{}".format(len(image_links)))
+    
+    for i, link in enumerate(image_links):
+        with rate_limiter:
+            response = requests.get(link)
+            with open(f"{title}/{i}.jpg", 'wb') as f:
+                f.write(response.content)
+        bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f"Descargando... {i+1}/{len(image_links)}")
+    
+    return image_links
+
+def create_cbz(title):
+    with zipfile.ZipFile(f"{title}.cbz", 'w') as zipf:
+        for root, dirs, files in os.walk(title):
+            for file in files:
+                zipf.write(os.path.join(root, file))
+    for file in os.scandir(title):
+        os.remove(file.path)
+    os.rmdir(title)
+
+@bot.message_handler(commands=['d'])
+def handle_command(message):
+    global command_in_use
+    if command_in_use:
+        bot.send_message(message.chat.id, "Espere, se esta usando el comando")
         return
-    text = args[0]
-    urls = [f'https://es.3hentai.net/d/{text}', f'https://es.3hentai.net/g/{text}']
-    for url in urls:
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            page_title = soup.title.string
-            img_url = soup.find('img', {'src': lambda x: x and 'cover.jpg' in x})['src']
-            img_tags = soup.find_all('img', {'src': lambda x: x and 't.jpg' in x})
-            download_command = '/d' if 'd' in url else '/g'
-            bot.send_photo(chat_id=message.chat.id, photo=img_url, caption=f'El nombre de la página es: {page_title}. La página contiene {len(img_tags)} imágenes. Si desea descargarlas, use el comando {download_command} {text}.')
-            break
-        else:
-            bot.reply_to(message, 'Ha introducido un código incorrecto')
+    command_in_use = True
+    id_manga = message.text.split()[1]
+    title = sanitize_filename(id_manga)
+    
+    try:
+        image_links = download_images(id_manga, title, message)
+        create_cbz(title)
+        with open(f"{title}.cbz", 'rb') as cbz_file:
+            bot.send_document(message.chat.id, cbz_file)
+        os.remove(f"{title}.cbz")
+    except Exception as e:
+        print(f"Error: {e}")
+    command_in_use = False
 
-@bot.message_handler(commands=['d', 'g'])
-def download_images_command(message):
-    command, *args = message.text.split()
-    if not args:
-        bot.reply_to(message, 'Introduzca un código')
-        return
-    text = args[0]
-    url = f'https://es.3hentai.net/{command[1:]}/{text}'
-    send_images(message.chat.id, url)
-
-bot.polling()
+while True:
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        print('Error de conexion')
+        # Espera 10 segundos antes de intentar reconectarse
+        time.sleep(5)
