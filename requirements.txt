@@ -1,4 +1,4 @@
-telebot==0.0.3
-requests==2.26.0
-beautifulsoup4==4.10.0
-ratelimiter==1.2.0.post0
+telebot
+requests
+beautifulsoup4
+ratelimiter
