@@ -1,7 +1,6 @@
-yaml
 services:
-  - name: <ernp-dlbeta>
-    type: web
-    buildCommand: <pip install -r requirements.txt>
-    startCommand: <python 3htg2.py>
-    
+- type: web
+  name: nombre-del-servicio
+  env: python
+  buildCommand: pip install -r requirements.txt
+  startCommand: python 3htg2.py
