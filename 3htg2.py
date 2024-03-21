@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import os
 import zipfile
 
-TOKEN = '6743528124:AAF5BtyqNTQbffrXtFdrJdW_pLL8RFGQnSk'
+TOKEN = os.getenv('TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
 # Variable global para controlar el uso del comando /d
