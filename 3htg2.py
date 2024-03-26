@@ -56,27 +56,31 @@ def create_cbz(title):
 @bot.message_handler(commands=['d'])
 def handle_command(message):
     global command_in_use
-    if command_in_use:
-        bot.send_message(message.chat.id, "Espere, se esta usando el comando")
-        return
-    command_in_use = True
-    id_manga = message.text.split()[1]
-    url = f"https://es.3hentai.net/d/{id_manga}"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    page_title = soup.title.string
-    title = sanitize_filename(page_title) + f" ({id_manga})"
+    if len(message.text.split()) == 1:
+        # Responde al usuario que debe añadir un código para que el comando funcione
+        bot.reply_to(message, "Debe añadir un codigo para que el comando funcione")
+    else:
+        if command_in_use:
+            bot.send_message(message.chat.id, "Espere, se esta usando el comando")
+            return
+        command_in_use = True
+        id_manga = message.text.split()[1]
+        url = f"https://es.3hentai.net/d/{id_manga}"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        page_title = soup.title.string
+        title = sanitize_filename(page_title) + f" ({id_manga})"
     
-    try:
-        image_links = download_images(id_manga, title, message)
-        create_cbz(title)
-        with open(f"{title}.cbz", 'rb') as cbz_file:
-            bot.send_document(message.chat.id, cbz_file)
-        os.remove(f"{title}.cbz")
-    except Exception as e:
-        print(f"Error: {e}")
-    command_in_use = False
-
+        try:
+            image_links = download_images(id_manga, title, message)
+            create_cbz(title)
+            with open(f"{title}.cbz", 'rb') as cbz_file:
+                bot.send_document(message.chat.id, cbz_file)
+            os.remove(f"{title}.cbz")
+        except Exception as e:
+            print(f"Error: {e}")
+        command_in_use = False
+        pass
 while True:
     try:
         bot.polling(none_stop=True)
